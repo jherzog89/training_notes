@@ -1,0 +1,95 @@
+Typescript
+//ESSENTIALS
+What is typescript - Typescript is javascript with syntax for types extension to javascript
+
+Typescript code has to be compiled (converted into Javascript) using 'tsc' command
+
+tsc calculator.ts
+
+C:\Users\jason>npm install -g typescript
+
+npm comes from Node.js
+
+use the .js file created from the .ts file in the html file
+
+let userName2: string;
+let userAge = 38; // :number is inferred from assignment
+
+function add(a: number, b = 5)
+
+add (10);
+add ('10'); // does not work
+add (10,6);
+
+let age: any; //any kind of value
+let age: string | boolean | number = 36; //union type
+
+let hobbies = ['Sports', 'Cooking'];
+
+// hobbies.push(10); not a string
+
+//let users: (string | number)[]
+let users: Array<string | number>; // equivilenet to above, Array is Generic type
+users = [1, 'Max'];
+users = [5, 1];
+users = ['Max', 'Anna'];
+
+let possibleResults: [number, number]; //Tuple, array can hold only two values of type number
+
+//objects:
+let user: {
+  name: string;
+  age: number | string;
+  hobbies: string[];
+  role: {
+    description: string;
+    id: number;
+  }
+}
+
+let data: Record<string, number | string>; //Record type - generic object
+data = { 
+	entry:1,
+	entry2: 'some string'
+	};
+enum Role {
+  Admin,   
+  Editor,
+  Guest,
+ }
+let userRole: Role = Role.Admin;
+
+let userRole: 'admin' | editor | 'guest' = 'admin'; //Alternative to enum, default to admin
+
+type Role = 'admin' | 'editor' | 'guest' | 'reader'; //Type alias
+let userRole: Role = 'admin';
+
+const inputEl = document.getElementById('user-name')! //ignore potential null issue
+const inputEl = document.getElementById('user-name') as HTMLInputElement | null;
+
+
+function performJob(cb: (msg: string) => void) {
+  // ...
+  cb('Job done!');
+}
+performJob(log); // function log defined elsewhere
+
+console.log(inputEl?.value); // ? only continue the execution of the line if not null
+
+val:any //allows anything in the varaible, no warnings
+val: unknown //Forces developer to add extra if typeof val checks
+function generateError(msg?: string) //? makes the parameter optional
+
+const didProvideInput = input ?? false; //is input null OR undefined then false
+
+//CONFIG
+tsc --init //creates an initial typescript config file
+
+use 'tsc' in the same folder as the tsconfig.json file to compile the program via config file
+
+to add package.json file (node.js):
+
+npm init -y
+
+npm install @types/nodes or @types/react //install other packages
+import fs from 'node:fs'; //use node fs library

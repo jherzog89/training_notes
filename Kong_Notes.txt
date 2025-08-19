@@ -1,0 +1,1098 @@
+decK - Provides the ability to configure Kong in a Declarative way
+inso - Provides the ability to runs tests and generate declarative configuration from Open API specifications
+portal - Provides the ability to automate the management of the Kong Developer portal
+Admin API - RESTful API to manage all Kong entities
+
+
+Services - endpoints/services
+Routes - how you reach/interact with those endpoints/service
+
+use gitops to auto build and deploy kong api (git runners)
+
+
+Enabling API key enforcement in Kong via the key-auth plugin:
+
+cat > key-auth/key-auth-service.yaml <<EOF
+plugins:
+- name: key-auth
+  service: Transactions_API_of_BanKonG
+  config:
+    key_names:
+    - x-api-key
+    key_in_header: true
+    key_in_query: false
+    key_in_body: false
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+     key-auth/key-auth-service.yaml
+
+
+Create consumer (could set a specific api key in the commented section):
+cat > key-auth/consumers.yaml <<EOF
+consumers:
+- username: Jane
+#  keyauth_credentials:
+#  - key: jane-key
+EOF
+
+Sync all yaml files with gateway:
+deck gateway sync deck/bankong-base.yaml \
+    key-auth/key-auth-service.yaml \
+    key-auth/consumers.yaml
+
+
+Generate a key:
+http POST localhost:8001/consumers/Jane/key-auth | jq '.key'
+
+Get the key later if needed:
+http localhost:8001/consumers/Jane/key-auth | jq '.data[].key'
+
+
+KEY=DQtXMjQcUaSZdSmvvhlfEQ6tuG9IEVV3
+echo $KEY
+http http://localhost:8000/transactions x-api-key:$KEY -vv
+
+anonymous consumers:
+cat >> key-auth/consumers.yaml <<EOF
+- username: anonymous_user
+EOF
+
+cat > key-auth/key-auth-service.yaml <<EOF
+plugins:
+- name: key-auth
+  service: Transactions_API_of_BanKonG
+  config:
+    key_names:
+    - x-api-key
+    key_in_header: true
+    key_in_query: false
+    key_in_body: false
+    anonymous: anonymous_user
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    key-auth/consumers.yaml \
+    key-auth/key-auth-service.yaml 
+
+Upload certificate to kong:
+cat > mtls/mtls-ca-cert.yaml <<EOF
+ca_certificates:
+- cert: |-
+$(awk '{printf "      %s\n", $0}' < /home/ubuntu/KDLL-208/.certificates/ca.cert.pem)
+  tags:
+  - ownCA
+EOF
+
+upload to kong
+deck gateway sync deck/bankong-base.yaml \
+     mtls/mtls-ca-cert.yaml
+
+Set environment variable to record ID
+CA_CERT_ID=$(http localhost:8001/ca_certificates | jq -r '.data[].id')
+echo $CA_CERT_ID
+
+
+
+set up confidential route and service
+cat > mtls/mtls-confid-service.yaml <<EOF
+services:
+- connect_timeout: 60000
+  host: mockbin.local
+  name: confidential-service
+  path: /request
+  port: 8080
+  protocol: http
+  routes:
+  - https_redirect_status_code: 426
+    name: confidential-route
+    path_handling: v0
+    paths:
+    - /confidential
+  write_timeout: 60000
+EOF
+
+
+public route
+cat > mtls/mtls-pub-service.yaml <<EOF
+services:
+- connect_timeout: 60000
+  host: mockbin.local
+  name: public-service
+  path: /request
+  port: 8080
+  protocol: http
+  routes:
+  - https_redirect_status_code: 426
+    name: public-route
+    path_handling: v0
+    paths:
+    - /public
+  write_timeout: 60000
+EOF
+
+Implement and verify the traffic is proxied
+deck gateway sync deck/bankong-base.yaml mtls
+http --verify=no GET https://localhost:8443/public
+http --verify=no GET https://localhost:8443/confidential
+
+mutal TLS
+CA_CERT_ID=$(http -f localhost:8001/ca_certificates | jq -r '.data[].id') 
+
+cat > mtls/mtls-plugin.yaml <<EOF
+plugins:
+- name: mtls-auth
+  service: confidential-service
+  config: 
+    ca_certificates:
+    - ${CA_CERT_ID}
+    revocation_check_mode: 'SKIP'
+EOF
+
+
+
+Pass the certificate to the confidential endpoint
+http --verify=no \
+       --cert=.certificates/client.crt \
+       --cert-key=.certificates/client.key \
+       https://localhost:8443/confidential
+
+
+
+Configure rate limiting:
+cat > mtls/mtls-rate-limiting.yaml <<EOF
+plugins:
+- name: rate-limiting
+  config: 
+    minute: 5
+    policy: local
+- name: rate-limiting
+  consumer: demo@example.com
+  config: 
+    minute: 10
+    policy: local
+EOF
+
+deck gateway sync deck/bankong-base.yaml mtls
+
+
+test the rate limiting:
+for ((i=1;i<=12;i++)) ;  do
+    REQ1=$(http -h --verify=no \
+      https://localhost:8443/public | head -1)
+    echo "Public $i:        $REQ1"
+
+    REQ2=$(http -h --verify=no \
+      --cert=.certificates/client.crt \
+      --cert-key=.certificates/client.key \
+      https://localhost:8443/confidential | head -1)
+    echo "Confidential $i:  $REQ2"
+  done
+
+
+Output:
+Public 1:        HTTP/1.1 200 OK
+Confidential 1:  HTTP/1.1 200 OK
+Public 2:        HTTP/1.1 200 OK
+Confidential 2:  HTTP/1.1 200 OK
+Public 3:        HTTP/1.1 200 OK
+Confidential 3:  HTTP/1.1 200 OK
+Public 4:        HTTP/1.1 200 OK
+Confidential 4:  HTTP/1.1 200 OK
+Public 5:        HTTP/1.1 429 Too Many Requests
+Confidential 5:  HTTP/1.1 200 OK
+Public 6:        HTTP/1.1 429 Too Many Requests
+Confidential 6:  HTTP/1.1 200 OK
+Public 7:        HTTP/1.1 429 Too Many Requests
+Confidential 7:  HTTP/1.1 200 OK
+Public 8:        HTTP/1.1 429 Too Many Requests
+Confidential 8:  HTTP/1.1 200 OK
+Public 9:        HTTP/1.1 429 Too Many Requests
+Confidential 9:  HTTP/1.1 200 OK
+Public 10:        HTTP/1.1 429 Too Many Requests
+Confidential 10:  HTTP/1.1 429 Too Many Requests
+Public 11:        HTTP/1.1 429 Too Many Requests
+Confidential 11:  HTTP/1.1 429 Too Many Requests
+Public 12:        HTTP/1.1 429 Too Many Requests
+Confidential 12:  HTTP/1.1 429 Too Many Requests
+
+
+JWT Token plugin
+
+create YAML file for plugin
+cat > jwt/jwt-service.yaml <<EOF
+plugins:
+- name: jwt
+  service: Transactions_API_of_BanKonG
+EOF
+Leave the service name out if you want to apply globally
+
+Add a consumer to the jwt yaml
+cat >> jwt/jwt-service.yaml <<EOF
+consumers:
+- username: Jane
+  jwt_secrets:
+  - algorithm: HS256
+    key: jwt-key
+    secret: jwtkey
+EOF
+
+Sync the config files
+deck gateway sync deck/bankong-base.yaml jwt/jwt-service.yaml
+
+Assign JWT token to consumer
+http POST localhost:8001/consumers/Jane/jwt
+
+Assign it to an environment variable
+KEY=$(http GET localhost:8001/consumers/Jane/jwt | jq '.data[0].key')
+echo '{"iss":'"$KEY"'}'
+
+SECRET=$(http GET localhost:8001/consumers/Jane/jwt | jq '.data[0].secret'|xargs)
+echo $SECRET
+
+Use both values to generate a JWT token:
+TOKEN=$(jwt encode --iss $KEY -S $SECRET)
+KongEduLab:~/KDLL-209$ echo $TOKEN
+eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NTE0NTY4MzksImlzcyI6InRMalhIWnVYblpqR0toamM0Q1lEVTZ0REw5WlRJejlrIn0.Dkjn6OsoQqhLX50L0go9a1FDaQqnQjhU6dOALp6lZQU
+
+
+Use theToken in an API call
+http -h GET localhost:8000/transactions Authorization:"Bearer $TOKEN"
+
+KongEduLab:~/KDLL-209$ jwt decode $TOKEN
+
+Token header
+------------
+{
+  "typ": "JWT",
+  "alg": "HS256"
+}
+
+Token claims
+------------
+{
+  "iat": 1751456839,
+  "iss": "tLjXHZuXnZjGKhjc4CYDU6tDL9ZTIz9k"
+}
+
+https://jwt.io/
+
+
+Securing APIs with OpenID Connection Plugin and Deck
+
+Keycloak
+yq '.services.keycloak' keycloak/docker-compose.yaml
+
+Copy OIDC route
+OIDC_ROUTE_ID=$(http localhost:8001/routes | jq '.data[] | select(.name == "echo-route")' | jq .id | xargs)
+
+echo $OIDC_ROUTE_ID
+
+Add OpenID Connect plugin
+CLIENT_SECRET="$(jq '.clients[] | select(.clientId == "kong")' ./keycloak/kong_realm_template.json | jq .secret | xargs)"
+
+Create the yaml for ODIC:
+cat > oidc/oidc-route.yaml <<EOF
+plugins:
+- name: openid-connect
+  route: $OIDC_ROUTE_ID
+  config: 
+    issuer: $KEYCLOAK_CONFIG_ISSUER
+    redirect_uri: 
+    - $KEYCLOAK_REDIRECT_URI/echo-request
+    client_id:
+    - kong
+    client_secret:
+    - $CLIENT_SECRET
+    ssl_verify: false
+    response_mode: form_post
+    introspection_check_active: false
+EOF
+
+config.issuer - This parameter tells the plugin where to find discovery information
+config.client_id - The client_id of the OpenID Connect client registered in OpenID - Connect Provider
+config.client_secret - The client_secret of the OpenID Connect client registered in OpenID Connect Provider
+config.redirect.uri - This parameter defines the URL the IDP will redirect the user to after a successful authentication
+config.response_mode - This parameter specifies the response mode the IDP should respond with
+config.ssl_verify - This parameter is set to false for this environment since the Keycloak uses a self signed certificate
+
+
+
+deck gateway sync deck/bankong-base.yaml \
+     oidc/oidc-route.yaml
+
+Get auth methods currently configured in OIDC
+http -b GET localhost:8001/plugins/$OIDC_PLUGIN_ID \
+    | jq .config.auth_methods
+
+Passwords allowed
+http -b GET localhost:8001/plugins/$OIDC_PLUGIN_ID \
+    | jq .config.password_param_type
+
+Get access token with user credentials:
+http GET localhost:8000/echo-request -a employee:test
+
+copy bearer token into env variable
+BEARER_TOKEN=$(http localhost:8000/echo-request -a employee:test | jq -r '.headers.authorization' | cut -c 7-)
+
+Check jwt payload (client credentials exposed):
+
+Better way: Get bearer token (avoid client exposing username/password):
+BEARER_TOKEN=$(http -f POST localhost:8080/auth/realms/kong/protocol/openid-connect/token \
+    grant_type=password \
+    client_id=kong \
+    client_secret=$CLIENT_SECRET \
+    username=employee \
+    password=test \
+    | jq -r .access_token | xargs)
+
+http -h GET localhost:8000/echo-request authorization:"Bearer $BEARER_TOKEN"
+jwt decode $BEARER_TOKEN
+KongEduLab:~/KDLL-210$ jwt decode $BEARER_TOKEN
+
+Token header
+------------
+{
+  "typ": "JWT",
+  "alg": "RS256",
+  "kid": "JzspeY7DKAwCqJox88x0u46ZpZY8ktqMpy6v1uweD4A"
+}
+
+Token claims
+------------
+{
+  "acr": "1",
+  "aud": [
+    "kong",
+    "account"
+  ],
+  "azp": "kong",
+  "email": "employee@example.com",
+  "email_verified": true,
+  "exp": 1751464447,
+  "family_name": "Employee",
+  "given_name": "An",
+  "iat": 1751464387,
+  "iss": "http://localhost:8080/auth/realms/kong",
+  "jti": "8d97f086-0a29-4a1d-bd17-208f5a6a6b20",
+  "name": "An Employee",
+  "preferred_username": "employee",
+  "realm_access": {
+    "roles": [
+      "demo-service",
+      "offline_access",
+      "internal-access"
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "email profile",
+  "session_state": "8b21b486-c91b-483c-b9bc-6f41ca465640",
+  "sid": "8b21b486-c91b-483c-b9bc-6f41ca465640",
+  "sub": "7404ab1e-a974-4bd7-a653-bcca76091838",
+  "typ": "Bearer"
+}
+
+
+
+RATE LIMITING
+Scoped globally:
+plugins:
+- name: rate-limiting
+  config: 
+    second: 5
+    hour: 60
+    policy: local
+
+
+Scoped to service:
+plugins:
+- name: rate-limiting
+  service: SERVICE_NAME
+  config: 
+    second: 5
+    hour: 60
+    policy: local
+
+Scope to Route:
+plugins:
+- name: rate-limiting
+  route: ROUTE_NAME
+  config: 
+    second: 5
+    hour: 60
+    policy: local
+
+
+
+cat > traffic-control/rate-limiting.yaml <<EOF
+plugins:
+- name: rate-limiting
+  service: Transactions_API_of_BanKonG
+  config: 
+    second: 3
+    minute: 5
+    policy: local
+EOF
+
+for ((i=1;i<=10;i++)) ; do
+    sleep 0.2
+    http http://localhost:8000/transactions | jq '.message'
+  done
+
+
+Different levels for requests throttling: 10 requests per min, 20 per 90 seconds:
+cat > traffic-control/adv-rate-limiting.yaml <<EOF
+plugins:
+- name: rate-limiting-advanced
+  service: Transactions_API_of_BanKonG
+  config:
+    identifier: consumer
+    namespace: BanKonG
+    limit:
+    - 10
+    - 20
+    window_size:
+    - 60
+    - 90
+    redis:
+      host: redis
+      port: 6379
+    strategy: redis
+    sync_rate: 0
+    window_type: sliding
+EOF
+
+
+
+Rate limiting by user groups:
+cat > traffic-control/consumer_groups.yaml <<EOF
+_format_version: "3.0"
+consumer_groups:
+- name: elite
+- name: premium
+EOF
+
+cat > traffic-control/consumers.yaml <<EOF
+_format_version: "3.0"
+consumers:
+  - username: Ann
+    keyauth_credentials:
+    - key: ann-key
+    groups:
+      - name: premium
+  - username: James
+    keyauth_credentials:
+    - key: james-key
+    groups:
+      - name: premium
+  - username: Sarah
+    keyauth_credentials:
+    - key: sarah-key
+    groups:
+      - name: elite
+EOF
+
+
+cat > traffic-control/keyauth_plugin.yaml <<EOF
+plugins:
+  - name: key-auth
+    service: Transactions_API_of_BanKonG
+    config:
+      key_names:
+        - x-api-key
+      key_in_header: true
+      key_in_query: true
+      key_in_body: true
+EOF
+
+
+deck gateway sync deck/bankong-base.yaml \
+     traffic-control/consumer_groups.yaml \
+     traffic-control/consumers.yaml \
+     traffic-control/keyauth_plugin.yaml
+
+ANN_KEY=$(http localhost:8001/consumers/Ann/key-auth| jq '.data[].key' | xargs)
+JAMES_KEY=$(http localhost:8001/consumers/James/key-auth| jq '.data[].key' | xargs)
+SARAH_KEY=$(http localhost:8001/consumers/Sarah/key-auth| jq '.data[].key' | xargs)
+
+http localhost:8000/transactions x-api-key:$ANN_KEY
+
+
+Rate limit by user group:
+cat > traffic-control/consumer_groups.yaml<<EOF
+consumer_groups:
+- name: elite
+  plugins:
+  - name: rate-limiting-advanced
+    config:
+      namespace: BanKong
+      limit:
+      - 2000
+      window_size:
+      - 60
+      window_type: sliding
+- name: premium
+  plugins:
+  - name: rate-limiting-advanced
+    config:
+      namespace: BanKong
+      limit:
+      - 1000
+      window_size:
+      - 60
+      window_type: sliding
+EOF
+
+No user group:
+cat > traffic-control/ratelimit_plugin.yaml <<EOF
+plugins:
+- name: rate-limiting-advanced
+  service: Transactions_API_of_BanKonG
+  config: 
+    limit:
+    - 10
+    window_size:
+    - 60
+    window_type: sliding
+    identifier: consumer
+    sync_rate: -1
+    namespace: BanKonG
+    strategy: local
+    hide_client_headers: false
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+     traffic-control/consumer_groups.yaml \
+     traffic-control/consumers.yaml \
+     traffic-control/keyauth_plugin.yaml \
+     traffic-control/ratelimit_plugin.yaml
+
+
+
+
+CACHING
+cat > traffic-control/proxy-cache-advanced.yaml <<EOF
+plugins:
+- name: proxy-cache-advanced
+  service: Transactions_API_of_BanKonG
+  config: 
+    cache_ttl: 600
+    response_code:
+    - 200
+    request_method:
+    - GET
+    - HEAD
+    content_type:
+    - text/plain
+    - application/json; charset=utf-8
+    strategy: redis
+    redis: 
+      host: redis
+      port: 6379
+EOF
+
+
+deck gateway sync deck/bankong-base.yaml \
+     traffic-control/proxy-cache-advanced.yaml
+
+http get http://localhost:8000/transactions
+X-Cache-Status: Miss
+http get http://localhost:8000/transactions
+X-Cache-Status: Hit
+
+PLUGIN_ID=$(http localhost:8001/plugins | jq '.data[].id' | xargs)
+echo $PLUGIN_ID
+7f1498dd-5701-48c6-a1b9-a90b81a6026e
+CACHE_KEY=$(http -h get http://localhost:8000/transactions | grep X-Cache-Key | awk -F: '{print $2}' | tr -d '\r' | xargs)
+echo $CACHE_KEY
+24f1eca5189fc6932a1f7f82fd0061cfc8ca7c2f17e8402f8fc74ca730f9fdd8
+
+http GET localhost:8001/proxy-cache-advanced/$CACHE_KEY
+http DELETE localhost:8001/proxy-cache-advanced/$CACHE_KEY
+
+
+ACL Access Control List
+cat > traffic-control/consumer-acls.yaml <<EOF
+consumers:
+- acls:
+  - group: allowed-list
+  custom_id: Jane
+  keyauth_credentials:
+  - key: jane-key
+  username: Jane
+- acls:
+  - group: denied-list
+  custom_id: Joe
+  keyauth_credentials:
+  - key: joe-key
+  username: Joe
+EOF
+deck gateway sync deck/bankong-base.yaml \
+     traffic-control/consumer-acls.yaml
+
+Add key-auth plugin:
+cat > traffic-control/acl-key-auth-plugin.yaml <<EOF
+plugins:
+- name: key-auth
+  route: Transactions_API_of_BanKonG-listTranactions
+  config:
+    key_names:
+    - x-api-key
+- name: acl
+  route: Transactions_API_of_BanKonG-listTranactions
+  config: 
+    allow:
+    - allowed-list
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+     traffic-control/consumer-acls.yaml \
+     traffic-control/acl-key-auth-plugin.yaml
+200 ok allowed:
+http http://localhost:8000/transactions x-api-key:jane-key -vv
+403 forbidden:
+http http://localhost:8000/transactions x-api-key:joe-key -vv
+
+
+
+CANARY PLUGIN
+cat > traffic-control/canary-service.yaml <<EOF
+services:
+- name: bankong-canary-api-service
+  host: httpbin.bankong
+  path: /xml
+  port: 80
+  routes:
+  - name: bankong-canary-api-route
+    paths:
+    - /api/canary
+    path_handling: v0
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    traffic-control/canary-service.yaml
+
+http -b http://localhost:8000/api/canary
+
+
+Duration canary:
+canary_start_time=$(expr $(date "+%s") + 20) && \
+cat > traffic-control/canary-period.yaml << EOF
+plugins:
+- name: canary
+  service: bankong-canary-api-service
+  config: 
+    start: ${canary_start_time}
+    duration: 60
+    upstream_host: httpbin.bankong
+    upstream_port: 80
+    upstream_uri: '/json'
+    hash: none
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    traffic-control/canary-service.yaml \
+    traffic-control/canary-period.yaml
+
+Canary is now actice. Calls a mix for 20 seconds until it goes to new build:
+for num in {1..70}; do
+ echo "Calling API #$num"
+ http -b http://localhost:8000/api/canary
+ sleep 1 
+done
+
+Fix percentage canary:
+cat > traffic-control/canary-percentage.yaml <<EOF
+plugins:
+- name: canary
+  service: bankong-canary-api-service
+  config: 
+    percentage: 50
+    upstream_host: httpbin.bankong
+    upstream_port: 80
+    upstream_uri: '/json'
+    hash: none
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    traffic-control/canary-service.yaml \
+    traffic-control/canary-percentage.yaml
+
+
+50% split should be XML/JSON:
+for num in {1..20}; do
+ echo "Calling API #$num"
+ http -b http://localhost:8000/api/canary
+ sleep 1 
+done
+
+
+IP canary:
+cat > traffic-control/canary-percentage.yaml <<EOF
+plugins:
+- name: canary
+  service: bankong-canary-api-service
+  config: 
+    percentage: 50
+    upstream_host: httpbin.bankong
+    upstream_port: 80
+    upstream_uri: '/json'
+    hash: ip
+EOF
+
+This means 50% of all requests will be XML and 50% JSON, however, once you make your first request the system will make a note of your IP Address and always route your request to the same service
+
+
+Canary by consumer grouP:
+cat > traffic-control/canary-consumer-groups.yaml <<EOF
+plugins:
+- name: canary
+  service: bankong-canary-api-service
+  config: 
+    groups: [vip-acl]
+    upstream_host: httpbin.bankong
+    upstream_port: 80
+    upstream_uri: '/json'
+    hash: allow
+EOF
+
+
+Finalize canary release:
+cat > traffic-control/bankong-canary-service-v1.yaml <<EOF
+services:
+- name: bankong-canary-api-service
+  host: httpbin.bankong
+  path: /json
+  port: 80
+  routes:
+  - name: bankong-canary-api-route
+    paths:
+    - /api/canary
+    path_handling: v0
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    traffic-control/bankong-canary-service-v1.yaml
+
+
+Transformation plugins
+remove → rename → replace → add → append
+
+Request transformer plugon:
+Add the header X-Kong-Test-Request_Header:MyHeader, and
+Rename header User-Agent to My-User-Agent
+cat > transformations/adv-request.yaml <<EOF
+plugins:
+- name: request-transformer-advanced
+  service: Mockbin_API_of_BanKonG
+  config: 
+    rename:
+      headers:
+      - User-Agent:My-User-Agent
+    add:
+      headers:
+      - X-Kong-Test-Request-Header:MyRequestHeader
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    transformations/adv-request.yaml 
+
+
+Response transformer plugin:
+cat > transformations/adv-response.yaml <<EOF
+plugins:
+- name: response-transformer-advanced
+  service: Mockbin_API_of_BanKonG
+  config: 
+    add:
+      json:
+      - json-key-added:Test-Key
+      headers:
+      - X-Kong-Test-Header:Test-Value
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    transformations/adv-response.yaml 
+
+
+jq Plugin:
+The jq plugin enables arbitrary jq transformations on JSON objects included in API requests or responses. This plugin covers the functionality of both request and response transformer plugins, and adds more capabilities when working with JSON bodies.
+
+Remove clientIPAddress and headers.x-real-ip
+Add test123 to .postData.text
+cat > transformations/jq.yaml <<EOF
+plugins:
+- name: jq
+  service: Mockbin_API_of_BanKonG
+  config:
+    response_jq_program: del(.clientIPAddress,.headers."x-real-ip") | .postData.text = "test123"
+    response_if_media_type:
+    - application/json
+    response_if_status_code:
+    - 200
+EOF
+
+
+Exit transformer plugin
+
+Add header incase of an error:
+cat > transformations/mockbin-key-auth.yaml <<EOF
+plugins:
+- name: key-auth
+  service: Mockbin_API_of_BanKonG
+  config:
+    key_names:
+    - x-api-key
+    key_in_header: true
+    key_in_query: false
+    key_in_body: false
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+    transformations/mockbin-key-auth.yaml
+
+
+Add a header "X-Transform-Header: Exit Transformer Plugin Triggered"
+Change the message to "***WARNING: No API key found in request**"
+Add 'error: true' and the HTTP status to the JSON body:
+cat << EOF > transformations/exit-transformer.yaml
+plugins:
+- name: exit-transformer
+  service: Mockbin_API_of_BanKonG
+  config:
+    functions:
+    - |
+      -- transform.lua
+          return function(status, body, headers)
+            if not body or not body.message then
+              return status, body, headers
+            end
+
+            headers = { ["X-Transform-Header"] = "Exit Transformer Plugin Triggered" }
+            local new_body = {
+              error = true,
+              status = status,
+              message =  "***WARNING: " .. body.message .. "***",
+            }
+
+            return status, new_body, headers
+          end
+EOF
+
+deck gateway sync deck/bankong-base.yaml \
+  transformations/mockbin-key-auth.yaml \
+  transformations/exit-transformer.yaml
+
+http GET localhost:8000/echo-request
+
+{
+    "error": true,
+    "message": "***WARNING: No API key found in request***",
+    "status": 401
+
+Connecting API Requests with Correlation ID Plugin and decK)
+The Correlation ID Plugin ties together all requests and responses in a transaction for tracing purposes.
+cat > correlation/mockbin.yaml <<EOF
+services:
+- connect_timeout: 60000
+  host: mockbin.local
+  name: correlation-mockbin
+  path: /request
+  port: 8080
+  protocol: http
+  routes:
+  - https_redirect_status_code: 426
+    name: echorequest
+    path_handling: v0
+    paths:
+    - /echorequest
+  write_timeout: 60000
+EOF
+
+cat > correlation/correlation-v1.yaml <<EOF
+plugins:
+- name: correlation-id
+  service: correlation-mockbin
+  config: 
+    header_name: My-Kong-Request-ID
+    generator: uuid
+    echo_downstream: true
+EOF
+
+
+deck gateway sync deck/bankong-base.yaml \
+    correlation/mockbin.yaml \
+    correlation/correlation-v1.yaml
+
+My-Kong-Request-ID: 1f45a931-b2f4-4e95-8d88-a85109f729ef
+
+
+uuid#counter:
+cat > correlation/correlation-v2.yaml <<EOF
+plugins:
+- name: correlation-id
+  service: correlation-mockbin
+  config: 
+    header_name: My-Kong-Request-ID
+    generator: uuid#counter
+    echo_downstream: true
+EOF
+
+My-Kong-Request-ID: d1d72d5a-7425-4823-aeda-b8f4ad5da2c7#4
+
+Correlation ID traker
+cat > correlation/correlation-v3.yaml <<EOF
+plugins:
+- name: correlation-id
+  service: correlation-mockbin
+  config: 
+    header_name: My-Kong-Request-ID
+    generator: tracker
+    echo_downstream: true
+EOF
+
+My-Kong-Request-ID: 172.18.0.4-8000-2441-381-1-1751569004.258
+
+Monitoring APIs with Prometheus Plugin, Grafana and decK
+
+Prometheus - System monitoring, open source, metrics stored in a time series db
+Kong prometheus plugin exposes metrics from Kong that can be scraped from Prometheus
+
+Available metrics:
+Status codes: HTTP status codes returned by Upstream services, either per service and across all services.
+Latencies Histograms: Latency as measured at Kong:
+Request: Total time taken by Kong and Upstream services to serve requests.
+Kong: Time taken for Kong to route a request and run all configured plugins.
+Upstream: Time taken by the Upstream service to respond to requests.
+Bandwidth: Total egress/ingress Bandwidth flowing through Kong, per service and as a sum across all services.
+DB reachability: A gauge type with a value of 0 or 1, which represents whether DB can be reached by a Kong node
+Connections: Various Nginx connection metrics like active, reading, writing, and number of accepted connections.
+Target Health: The health status of Targets for a given Upstream (healthchecks_off, healthy, unhealthy, or dns_error).
+Dataplane Status: Last seen timestamp, config hash, and config sync status for data plane nodes that is exported to control plane.
+Enterprise License Information: The Kong Gateway license expiration date, features and license signature.
+
+View metrics:
+yq '.services.kong-dp.environment.KONG_STATUS_LISTEN' docker-compose.yaml
+yq '.services.kong-cp.environment.KONG_STATUS_LISTEN' docker-compose.yaml
+
+
+cat > monitoring/key-auth-consumers.yaml <<EOF
+plugins:
+- name: key-auth
+  service: Transactions_API_of_BanKonG
+  config:
+    key_names:
+    - x-api-key
+    key_in_header: true
+    key_in_query: true
+    key_in_body: false
+consumers:
+- username: Jane
+  keyauth_credentials:
+  - key: jane-key
+EOF
+
+Enable prometheus:
+cat > monitoring/prometheus.yaml <<EOF
+plugins:
+- name: prometheus
+  config:
+    per_consumer: true
+    status_code_metrics: true
+    latency_metrics: true
+    bandwidth_metrics: true
+    upstream_health_metrics: true
+EOF
+deck gateway sync deck/bankong-base.yaml \
+    monitoring/key-auth-consumers.yaml \
+    monitoring/prometheus.yaml
+
+Get metrics:
+http GET localhost:8101/metrics 
+http GET localhost:8101/metrics | grep -i transactions
+
+kong_upstream_latency_ms_bucket{service="Transactions_API_of_BanKonG",route="Transactions_API_of_BanKonG-listTranactions",le="60000"} 4
+kong_upstream_latency_ms_bucket{service="Transactions_API_of_BanKonG",route="Transactions_API_of_BanKonG-listTranactions",le="+Inf"} 4
+kong_upstream_latency_ms_count{service="Transactions_API_of_BanKonG",route="Transactions_API_of_BanKonG-listTranactions"} 4
+kong_upstream_latency_ms_sum{service="Transactions_API_of_BanKonG",route="Transactions_API_of_BanKonG-listTranactions"} 17
+
+Grafana uses prometheus as a data source and visualizes the metrics
+
+Logging API Traffic with File Log Plugin and decK
+The File Log plugin appends HTTP request and response data to a log file in JSON format - it also supports streams data (TCP, TLS, and UDP).
+
+Enable log file plugin:
+cat > logging/filelog.yaml <<EOF
+plugins:
+- name: file-log
+  service: Transactions_API_of_BanKonG
+  config: 
+    path: /tmp/filelog.log
+    reopen: true
+EOF
+
+sync files
+generate traffic
+View data generated:
+docker exec -it kong-dp cat /tmp/filelog.log | jq
+
+docker exec -it kong-dp cat /tmp/filelog.log | yq .latencies -P
+
+
+
+Below are the most important concepts and syntaxes of the Kong Gateway API with concise, one-sentence definitions, focusing on its core functionality for managing APIs and microservices:Service: Represents an upstream backend API or microservice that Kong proxies requests to, defined with a URL or upstream object.
+
+Route: Defines how client requests are matched and forwarded to a Service, using criteria like paths, methods, or headers.
+
+Consumer: Represents a client (user or application) accessing APIs, used for authentication and access control.
+
+Plugin: Extends Kong’s functionality (e.g., authentication, rate limiting, logging) by applying modular policies to Services, Routes, or globally.
+
+Upstream: A virtual hostname for load balancing requests across multiple backend Target services.
+
+Target: Specifies a backend server (hostname and port) within an Upstream for load balancing.
+
+Admin API: A RESTful API for configuring and managing Kong entities like Services, Routes, and Plugins programmatically.
+
+Key Authentication: A plugin that restricts API access to requests with valid API keys associated with Consumers.
+
+Rate Limiting: A plugin that restricts the number of requests a client can make to an API within a time window.
+
+JWT Authentication: A plugin that validates JSON Web Tokens (JWTs) for secure API access, integrating with OAuth2 flows.
+
+Kong Manager: A web-based GUI for managing Kong Gateway configurations, Services, Routes, and Plugins.
+
+decK: A CLI tool for declarative configuration management, synchronizing Kong configurations using YAML files.
+
+DB-less Mode: A configuration mode where Kong stores settings in memory or YAML files, eliminating the need for a database.
+
+Kong Ingress Controller: Integrates Kong with Kubernetes to manage API traffic using Ingress or Gateway API resources.
+
+Expressions Router: A Kong Gateway 3.0+ feature using Rust-based regular expressions for advanced route matching.
+
+Load Balancing: Distributes incoming requests across multiple Targets using algorithms like weighted-round-robin or hash-based balancing.
+
+Kong Konnect: A cloud-based platform for managing Kong Gateway deployments, providing analytics, developer portals, and hybrid setups.
+
+Request Transformer: A plugin that modifies incoming or outgoing requests/responses, e.g., rewriting URLs or headers.
+
+Gateway API: A Kubernetes API standard supported by Kong for configuring traffic routing (e.g., HTTPRoute, GRPCRoute).
+
+Tags: Custom labels for filtering and managing Kong entities (e.g., Services, Routes) using query parameters.
+
+These concepts and syntaxes are critical for leveraging Kong Gateway’s capabilities in API management, security, and microservices orchestration.
+
+
+
+
+
+
+

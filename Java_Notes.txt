@@ -1,0 +1,24 @@
+Below are the most important features introduced in Java since Java 8 (up to Java 23, as of July 20, 2025), with concise one-sentence definitions:
+
+- Lambda Expressions (Java 8): Enables functional programming by allowing anonymous functions as first-class citizens using `->` syntax.
+- Stream API (Java 8): Provides a functional-style API for processing sequences of data with operations like `map`, `filter`, and `reduce`.
+- Optional (Java 8): A container class (`Optional<T>`) to handle potentially absent values, reducing null pointer exceptions.
+- Default Methods (Java 8): Allows interfaces to have methods with implementations using the `default` keyword, enabling backward-compatible interface evolution.
+- Local-Variable Type Inference (Java 10): Introduces `var` for local variables, allowing type inference while maintaining type safety (e.g., `var list = new ArrayList<>()`).
+- Switch Expressions (Java 14): Enhances `switch` with expression syntax using `->` and `yield`, allowing it to return values.
+- Records (Java 16): Provides a concise syntax for immutable data classes (`record`) with automatic constructor, getters, `equals`, `hashCode`, and `toString`.
+- Sealed Classes (Java 17): Restricts which classes can extend or implement a class/interface using `sealed` and `permits`, improving type safety.
+- Pattern Matching for instanceof (Java 16): Simplifies type casting by combining `instanceof` checks and variable binding (e.g., `if (obj instanceof String s)`).
+- Text Blocks (Java 15): Allows multi-line string literals using `"""`, simplifying JSON, SQL, or HTML string definitions.
+- Pattern Matching for Switch (Java 21): Extends switch expressions to match complex patterns, like record or type patterns, with `case` refinements.
+- Foreign Function & Memory API (Java 22): Enables safe and efficient interaction with native code and memory outside the JVM, replacing JNI.
+- Virtual Threads (Java 21): Introduces lightweight threads for high-throughput concurrency, simplifying scalable application design.
+- String Templates (Java 22): Provides `STR` and `FMT` processors for safe, readable string interpolation (e.g., `STR."Hello \{name}"`).
+- Scoped Values (Java 21): Allows immutable data sharing within a thread or across virtual threads, replacing thread-local variables.
+- Structured Concurrency (Java 21): Simplifies multithreaded programming by treating groups of tasks as a single unit with a structured lifecycle.
+- Vector API (Java 21): Supports vector computations for parallel processing on modern CPUs, optimized for performance.
+- Enhanced Pseudo-Random Number Generators (Java 17): Introduces new APIs (`RandomGenerator`) for flexible, high-quality random number generation.
+- Module System (Java 9): Introduces `module-info.java` for defining modular JARs, improving encapsulation and scalability.
+- HTTP Client (Java 11): Provides a modern, reactive HTTP client API supporting HTTP/2 and WebSocket.
+
+These features, introduced from Java 8 to Java 23, enhance productivity, performance, and safety for modern Java development.

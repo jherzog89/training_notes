@@ -1,0 +1,131 @@
+Exams
+	1 - 61%, 
+	2 - 70%, 
+	3 - 78%
+
+EC2/On-Premises (Elastic Compute Cloud - virtual servers)
+	BeforeInstall, 
+	AfterInstall, 
+	ApplicationStart, 
+	ApplicationStop, and 
+	ValidateService; for 
+
+ECS, they are (elastic container service)
+	BeforeInstall, 
+	AfterInstall, 
+	AfterAllowTestTraffic, 
+	BeforeAllowTraffic, and 
+	AfterAllowTraffic; for 
+Lambda, they are
+	 BeforeAllowTraffic and 
+	AfterAllowTraffic
+
+
+SSD - gp2 volumes iops is tied to volume size
+	5.3 TiB - a maximum of 16,000 IOPS
+
+Cognito User pool - Sign in, third party, persist
+	Idenity pool - temporary
+
+Security group - Loose - Automatically allows traffic out via an inbound rule (stateful)
+Nework ACL - Strict - Must allow in and out explicitly seperateley (stateless)
+
+EBS Volumes - AZ locked
+EFS Volumes - Region locked
+
+AWS KMS - up to 4 KB data encyption
+
+sam sync - incremental fast deployment
+sam deploy - full deployment
+cdk diff - differnces local vs deployed
+cdk deploy - deploy stack
+
+Zonal reserved instances - Cheaper, reserved capactiy
+Regional reserved instances - Expensive, no reserved capacity
+
+Kinesis Data Streams - High flow, manual increase shards, no transformation
+Kinesis Fire hose -  transform data, automatic scaling
+
+VPC Flow Logs - capture traffic info in your VPC. 
+
+AWS CloudFormation valid Parameter types 
+		String, 
+		Number, 
+		List<number>, 
+		CommaDelimitedList, 
+		AWS::*
+
+
+o1 EBS volume - size between 4 GiB and 16 TiB, 
+		provisioned IOPS between 100 and 64,000
+		Same AZ as EC2
+		50:1 GiB:IOPS
+
+CloudFront key pairs - 2 per root user
+			Private key for URL, public key with cloudfront
+CloudFront key groups - you can associate a higher number of public keys
+
+RCU = Count * (size/4KB) (strongly consistent)
+eRCU = RCU*2 = Count * (size/4KB)/2
+WCU = count * (size/1kb)
+
+
+SQS - No limit to messages but 120k for in flight messages (not yet deleted from queue)
+	Delay queues (postpone delivery)
+	Standard queue (at least once delivery, max throughput)
+	FIFO queues (Processed once in order they are sent)
+
+SQS scales automatically, lambda can do it on a schedule or automatically
+
+ASG metrics - ASGAverageCPUUtilization, 
+		ASGAverageNetworkIn, 
+		ASGAverageNetworkOut, or 
+		ALBRequestCountPerTarget, or custom CloudWatch
+
+Dynamo DB - 400kb max item
+redshift - petabyte-scale data warehouse service
+
+security group - firewall for IP traffic
+iam role - permission to resources or services
+
+AWS Security Token Service - temporary IAM access
+
+CodeDeploy - appspec.yml - deployment process
+CodeBuild - buildspec.yml - build process
+
+immutable - deployed to new instances, with new auto ASG, min impact
+Rolling - in place deployment
+Rolling with additional batch - incremental outside cap, longer deploy manual rollback
+All at once - classic deploy
+
+--dry-run option checks if have permissions for the action
+
+AWS Systems Manager Parameter Store - managing configuration data and secrets, such as database credentials or API keys
+
+DynamoDB has two built-in backup methods (On-demand, Point-in-time recovery) that write to Amazon S3, but you will not have access to the S3 buckets that are used for these backups.
+
+Lambda -To deploy a container image to Lambda, the container image must implement the Lambda Runtime API. No multi-architecture images
+	Can scale on schedule to reduce spin up time of the auto scaling
+
+Encrypt - directly encrypts data (up to 4 KB) using a customer master key (CMK)
+GenerateDataKey - creates a unique data key for client-side encryption of larger data
+
+WebSocket APIs - real-time, bidirectional communication between clients and servers, persistent connections
+
+AWS X-Ray sampling - control the amount of tracing data to a small percentage of requests
+
+Amazon ElastiCache - for Redis is a fully managed, scalable data replication, clustering, and automatic failover.
+
+Memcached - designed for simplicity while Redis offers a rich set of features that make it effective for a wide range of use cases. 
+
+
+ECS task placement
+	spread (distributes tasks evenly across specified attributes like Availability Zones), 
+	binpack (places tasks to minimize unused resources like CPU or memory), and 
+	random (places tasks randomly without specific criteria).
+
+Adaptive Authentication - configure your user pool to block suspicious sign-ins or add second factor authentication in response to an increased risk level
+
+RCU = 20(4/4)/2
+WCU = 10(2/1)
+ 

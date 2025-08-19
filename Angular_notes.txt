@@ -1,0 +1,389 @@
+Install angular CLI:
+npm install -g @angular/cli
+ng version
+
+make starter application named todo:
+ng new todo
+
+launch application and keep updated
+cd todo
+ng serve
+
+
+ng help
+ ng add <collection>            Adds support for an external library to your
+                                 project.
+  ng analytics                   Configures the gathering of Angular CLI usage
+                                 metrics.
+  ng build [project]             Compiles an Angular application or library into
+                                 an output directory named dist/ at the given
+                                 output path.                       [aliases: b]
+  ng cache                       Configure persistent disk cache and retrieve
+                                 cache statistics.
+  ng completion                  Set up Angular CLI autocompletion for your
+                                 terminal.
+  ng config [json-path] [value]  Retrieves or sets Angular configuration values
+                                 in the angular.json file for the workspace.
+  ng deploy [project]            Invokes the deploy builder for a specified
+                                 project or for the default project in the
+                                 workspace.
+  ng e2e [project]               Builds and serves an Angular application, then
+                                 runs end-to-end tests.             [aliases: e]
+  ng extract-i18n [project]      Extracts i18n messages from source code.
+  ng generate                    Generates and/or modifies files based on a
+                                 schematic.                         [aliases: g]
+  ng lint [project]              Runs linting tools on Angular application code
+                                 in a given project folder.
+  ng new [name]                  Creates a new Angular workspace.   [aliases: n]
+  ng run <target>                Runs an Architect target with an optional
+                                 custom builder configuration defined in your
+                                 project.
+  ng serve [project]             Builds and serves your application, rebuilding
+                                 on file changes.              [aliases: dev, s]
+  ng test [project]              Runs unit tests in a project.      [aliases: t]
+  ng update [packages..]         Updates your workspace and its dependencies.
+                                 See https://update.angular.dev/.
+  ng version                     Outputs Angular CLI version.       [aliases: v]
+
+
+build all files, dist folder is created and only thing needed to deploy
+ng build 
+
+
+Angular is made up of components. Mapping happens in the component.ts files
+
+--skip-import --standalone
+Create new component:
+ng generate component welcome --skip-import --standalone
+
+Will generate every file needed (.css, .spec.ts, .ts, .html)
+Every angular component (@Component) has to be associated with an Angular Module (@NgModule)
+
+using components within components: import 
+html file:       <app-welcome></app-welcome>
+
+.ts file:
+import { Welcome } from './welcome/welcome'; 
+// app-welcome is exported as Welcome
+
+@Component({
+  selector: 'app-root',
+  imports: [RouterOutlet, Welcome],
+
+
+
+Another example:
+app.ts:
+    export class App {
+
+welcome.ts:
+    import {App} from '../app';
+
+Use this command to generate login component:
+
+ng generate component login --skip-import --standalone
+
+In order to render LoginComponent, we need to import in app.ts
+import { LoginComponent } from './login/login'; // Import this
+
+@Component({
+selector: 'app-root',
+standalone: true,
+imports: [
+RouterOutlet,
+WelcomeComponent,
+LoginComponent, // Import this
+],
+templateUrl: './app.component.html',
+styleUrl: './app.component.css'
+})
+
+export class AppComponent {
+title = 'todo';
+}
+
+
+Master Microservices with SpringBoot,Docker,Kubernetes
+Java Full Stack with Spring Boot and Angular (Udemy 14 hours)
+Spring Batch Framework (Udemy 7 hours)
+SQL and PostgreSQL: The Complete Developer's Guide (Udemy 22 hours)
+
+Interpolation (one way databinding):
+    {{username}}
+Two way data binding (ngModel)
+    [(ngModel)]= "username" // two way databinding
+    use NgModule for two way databinding
+        import { FormsModule } from '@angular/forms';
+Event databinding 
+    <button (onclick)=doAFunction() 
+
+Directives
+    import { NgIf } from '@angular/common'; // Added
+    *ngif="condiitonVariable"
+    new way:
+        @if(invalidLogin){
+            <small>{{errorMessage}}</small>
+        }
+
+Routes
+    app.ts:
+          imports: [Login,FormsModule,RouterOutlet],
+
+    app.routes.ts
+    
+export const routes: Routes = [
+    {path:'login', component: Login},
+    {path:'welcome', component: Welcome},
+    {path:'', component: Login},
+    {path:'**', component: Error}
+
+  //Dependency inject router
+  constructor(private router: Router){
+
+  }
+
+    handleLogin(){
+      if(this.username==="in28minutes" && this.password === 'dummy'){
+        this.invalidLogin = false;
+        this.router.navigate(['welcome']);
+
+
+icec ream
+
+i - > a
+
+acecreim
+
+
+
+class Solution {
+    public String reverseVowels(String s) {
+
+        // a e i o u
+        //Edge cases: TODO
+        //Core solution:
+        //loop 1 incrementally until a vowel is found
+        //loop 2 decrementally until a vowel is found
+        //switch loop 1 vowel with loop 2
+        String vowels = "aeiouAEIOU";
+        char[] buffer = s.toCharArray();
+        int i =0;
+        int j = buffer.length-1;
+        while (i < buffer.length/2) {
+            if(vowels.indexOf(buffer[i]) != -1){
+                //have found a match on lower, look for match on upper
+                while(j>=buffer.length/2){
+                    if(vowels.indexOf(buffer[j]) != -1){
+                        //swap
+                        char swap = buffer[i];
+                        buffer[i] =  buffer[j];
+                        buffer[j] = swap;
+                        j--;
+                        break;
+                    }
+                    j--;
+                }
+            }
+            i++;
+        }
+        return new String(buffer);
+        
+    }
+}
+
+passing params in router add:
+        {path:'welcome/:name', component: Welcome},
+   in the destination component add depency injected router
+      constructor(private route:ActivatedRoute){
+    can now get the param from router snapshot:
+       this.name = this.route.snapshot.params['name'];
+
+
+Looping through a list called todos:
+component:
+todos=[
+    {id:1,description: 'Learn to Dance'},
+    {id:2,description: 'Another list item'},
+    {id:3,description: 'a third list item'},
+  ]
+html:
+        @for(todo of todos; track todo.id){
+            <tr>
+                <td>{{todo.id}}</td>
+                <td>{{todo.description}}</td>
+            </tr>
+        }
+
+DataPipe:
+     <td>{{todo.targetDate | date:'MM/dd/yyyy'}}</td>
+  imports: [DatePipe],
+
+RouterLink:
+    You can manage your dodos <a routerLink="/todos">here</a>
+  imports: [RouterLink],
+
+
+Modules - group of components:
+    some are built in other are automatically added when adding components.
+After Angular 17 this has been removed in favor of standalone components (reduces boilerplat coding)
+
+bootstrapping:
+    RootModule - can be any module that is assigned the bootstrap in main.ts
+import { App } from './app/app';
+bootstrapApplication(App, appConfig)
+
+index.html (<app-root) -> bootstrap -> app.html (root)
+
+getbootstrap.com - framework for template starter page design
+google unpkg bootstrap 4
+
+creating menu and footer:
+ng generate component menu --skip-import --standalone
+
+ng generate component footer --skip-import --standalone
+
+
+Services
+    ng generate service service/hardcodedAuthentication
+
+   @Injectable({
+     providedIn: 'root'
+    })
+
+    Things Router and service being automatically injected here
+      constructor(private router: Router,
+      public auth: HardcodedAuthentication
+
+can call a public injected service from html:
+            @if(auth.isUserLoggedIn()){
+             <li><a routerLink="/welcome/in28minutes" class="nav-link">Home</a></li>
+                <li><a routerLink="/todos" class="nav-link">Todos</a></li>
+            }
+
+RouteGuard
+    can specify conditions when routes can be activated 
+    ng generate service service/routeGuard 
+    export class RouteGuard implements CanActivate{
+    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot){
+      if(this.auth.isUserLoggedIn()){
+        return true;
+      }
+      this.router.navigate(['login']);
+
+export const routes: Routes = [
+    {path:'login', component: Login}, 
+    {path:'welcome/:name', component: Welcome, canActivate:[RouteGuard]},
+
+
+
+Calling rest from angular:
+welcome.ts:
+  getWelcomeMessage(){
+    //console.log("get welcome message");
+   console.log(this.service.executeHelloWorldBeanService());
+  this.service.executeHelloWorldBeanService().subscribe();
+  }
+welcome-data.ts (service)
+    
+  executeHelloWorldBeanService(){
+    return this.http.get('http://localhost:8080/hello-world-bean');
+    //console.log("Executed bean service");
+  }
+
+//call delete REST
+deleteTodo(username:string,id:number){
+      return this.http.delete(`http://localhost:8080/users/${username}/todos/${id}`);
+    }
+
+//call get REST
+    //detail of a single data structure
+    retrieveTodo(username:string,id:number){
+      return this.http.get<Todo>(`http://localhost:8080/users/${username}/todos/${id}`);
+    }
+    //list of data
+    retrieveAllTodos(username : string){
+      return this.http.get<Todo[]>(`http://localhost:8080/users/${username}/todos`);
+    }
+
+
+        <input type="date" 
+        [ngModel]="todo.targetDate | date:'yyyy-MM-dd'" 
+        (ngModelChange)="todo.targetDate"
+        class="form-control" name="description" required="required">
+
+#todoForm is a template variable used for reference to the form
+  <form (ngSubmit)="!todoForm.invalid && saveTodo()" #todoForm="ngForm">
+
+
+Add http header interceptor
+app.config:
+     {provide: HTTP_INTERCEPTORS, useClass: HttpInterceptorBasicAuth, multi:true }
+
+Make an interceptor to inject auth headers for every http call:
+export class HttpInterceptorBasicAuth implements HttpInterceptor{
+
+  constructor(private basicAuth:BasicAuthentication) { }
+
+  intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    if(this.basicAuth.getAuthenticatedtoken()){
+        req = req.clone({setHeaders:{Authorization : this.createBasicAuthHttpHeader()}})
+    }
+      return next.handle(req);
+   }
+
+  createBasicAuthHttpHeader(){
+  let basicAuthString = this.basicAuth.getAuthenticatedtoken();
+  if(basicAuthString === null)
+      return '';
+  else
+    return basicAuthString;
+ }
+}
+
+export class BasicAuthentication {
+
+  executeAuthenticationService(username: string, password: string){ 
+    let basicAuthHeaderString = 'Basic ' + window.btoa(username + ':' + password);
+    let headers =  new HttpHeaders({Authorization: basicAuthHeaderString});
+    return this.http.get<AuthenticationBean>(`${API_URL}/basicauth`, {headers}).pipe(
+      map(
+        data=>{
+            sessionStorage.setItem(AUTHENTICATED_USER, username);
+            sessionStorage.setItem(TOKEN, basicAuthHeaderString);
+            return data;
+        }
+      )
+    );
+  }
+}
+
+
+Below are the most important Angular concepts and syntaxes with concise, one-sentence definitions:
+
+- Component: A class with a template that defines a reusable UI building block, decorated with `@Component`.
+- Module: A class with `@NgModule` that organizes components, services, and other features into cohesive units.
+- Template: HTML markup with Angular-specific syntax (e.g., directives, bindings) defining a component’s view.
+- Data Binding: Synchronizes data between the component class and template using syntax like `{{value}}` (interpolation), `[property]="value"` (property binding), `(event)="handler"` (event binding), or `[(ngModel)]="value"` (two-way binding).
+- Directive: Extends HTML behavior or structure, with built-in types like `*ngIf` (conditional display) and `*ngFor` (iteration).
+- Service: A class with `@Injectable` that provides reusable logic or data access, injected via dependency injection.
+- Dependency Injection: A design pattern where Angular’s injector provides dependencies (e.g., services) to components or other services.
+- Pipe: Transforms data in templates using syntax like `{{ value | pipe }}`, e.g., `date` or `uppercase`.
+- Routing: Configures navigation between views using `@NgModule`’s `RouterModule` and routes defined with `path` and `component`.
+- Observable: A reactive programming construct from RxJS for handling asynchronous data streams, used in HTTP requests or event handling.
+- HttpClient: An Angular service for making HTTP requests, returning Observables for handling responses.
+- Template Reference Variable: A variable defined in a template (e.g., `#myVar`) to reference DOM elements or components.
+- Angular CLI: A command-line tool for generating, building, and testing Angular applications with commands like `ng new` or `ng generate`.
+- Forms: Supports template-driven (`ngModel`) or reactive forms (`FormGroup`, `FormControl`) for user input handling.
+- Input/Output: Decorators `@Input()` and `@Output()` for passing data to and emitting events from child components.
+- Lifecycle Hooks: Methods like `ngOnInit` or `ngOnDestroy` that allow components to handle specific stages of their lifecycle.
+- Change Detection: Angular’s mechanism to detect and update the UI when data changes, using Zone.js.
+- NgZone: A service to manage change detection and execute code inside or outside Angular’s zone for performance optimization.
+- Interpolation: Embeds component data in templates using `{{ expression }}` syntax.
+- Lazy Loading: Loads modules on demand to improve application performance, configured in routing with `loadChildren`.
+
+These concepts and syntaxes are foundational for building dynamic, scalable Angular applications.
+
+
+
+
+

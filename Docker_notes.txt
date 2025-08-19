@@ -1,0 +1,87 @@
+docker --version
+
+docker container run -d -p 5000:5000 in28min/hello-world-nodejs:0.0.1.RELEASE
+docker container run -d -p 5000:5000 in28min/hello-world-java:0.0.1.RELEASE
+docker container run -d -p 5000:5000 in28min/hello-world-python:0.0.1.RELEASE
+docker container ls 
+docker image ls
+docker container stop cc
+docker container run -d -p 5001:5000 in28min/hello-world-nodejs:0.0.1.RELEASE
+docker container run -d -p 5002:5000 in28min/hello-world-nodejs:0.0.1.RELEASE
+docker container run -p 5003:5000 in28min/hello-world-nodejs:0.0.1.RELEASE
+docker container run -p 5003:5000 in28min/hello-world-nodejs:0.0.1.RELEASE
+ 
+docker --version
+docker container ls
+docker build -t in28min/hello-world-docker:v1 .
+docker image list
+docker run -d -p 5000:5000 in28min/hello-world-docker:v1
+docker build -t in28min/hello-world-docker:v2 .
+docker container run -d -p 5000:5000 in28min/hello-world-docker:v2
+docker build -t in28min/hello-world-docker:v3 .
+docker container run -d -p 5000:5000 in28min/hello-world-docker:v3
+docker build -t in28min/hello-world-docker:v4 .
+
+-p hostPort:containerPort - Maps internal docker port (container port) to a port on the host (host port)
+-d Detached mode, detaches terminal from docker execution
+
+
+Dockerfile - file with instructions to create a docker image
+    FROM - sets a base image (Open JDK, etc)
+    COPY - target/*.jar app.jar (copies jars into docker image)
+    EXPOSE - Which port the container will listen to at run time
+    ENTRYPOINT - ["java","-jar","/app-jar"] 
+
+docker build -t jherzog89/reverse-string-service:v1 .
+
+
+docker run --name post
+gres-container -e POSTGRES_USER=testuser -e POSTGRES_PASSWORD=password -e POSTGRES_DB=testdb -p 5432:5432 -d postgres:latest
+#docker build -t jherzog89/reverse-string-service:v1 .
+#docker run -d -p 8080:5000 jherzog89/reverse-string-service:v1
+
+#docker ps -a --filter "name=postgres-container"
+#Run Postgres and docker in same network
+
+
+docker kill postgres-container
+docker rm postgres-container
+
+docker network create my-app-network
+
+#build
+docker build -t jherzog89/api-gateway-service:v1 /home/dev/Documents/workspace/api-gateway > api-gateway-build.log 2>&1 & \
+docker build -t jherzog89/naming-registry-service:v1 /home/dev/Documents/workspace/naming-server > naming-server-build.log 2>&1 & \
+docker build -t jherzog89/authentication-service:v1 /home/dev/Documents/workspace/authentication-service > authentication-service-build.log 2>&1 & \
+docker build -t jherzog89/reverse-string-service:v1 /home/dev/Documents/workspace/restful > reverse-string-build.log 2>&1 & \
+docker build -t jherzog89/angular-app:v1 /home/dev/Documents/workspace/todos > angular-app-build.log 2>&1 & \
+docker build -t jherzog89/reverse-words-service:v1 /home/dev/Documents/workspace/reverse-words > reverse-words-build.log 2>&1 &
+
+#run
+docker run --name postgres-container --network my-app-network -e POSTGRES_USER=testuser -e POSTGRES_PASSWORD=password -e POSTGRES_DB=testdb -p 5432:5432 -d postgres:latest
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name naming-registry-container --network my-app-network -p 8761:8761 jherzog89/naming-registry-service:v1
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name authentication-container --network my-app-network -p 8777:8777 jherzog89/authentication-service:v1
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name api-gateway-container --network my-app-network -p 8765:8765 jherzog89/api-gateway-service:v1
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name reverse-string-container --network my-app-network -p 8080:8080 jherzog89/reverse-string-service:v1
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name angular-app-container --network my-app-network -p 4200:80 jherzog89/angular-app:v1
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name reverse-words-container --network my-app-network -p 8090:8090 jherzog89/reverse-words-service:v1
+docker run -d --name zipkin --network my-app-network -p 9411:9411 openzipkin/zipkin
+
+
+#add additional containers
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name reverse-words-container2 --network my-app-network -p 8091:8091 jherzog89/reverse-words-service:v1
+docker run -d -e "SPRING_PROFILES_ACTIVE=docker" --name reverse-string-container2 --network my-app-network -p 8081:8081 jherzog89/reverse-string-service:v1
+
+docker network inspect -f '{{range .Containers}}{{.Name}}{{end}}' my-app-network
+docker ps -a
+docker start $(docker ps -a -q)
+docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
+./docker_build_all.sh
+
+
+
+
+
+
+

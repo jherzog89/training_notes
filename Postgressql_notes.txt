@@ -1,0 +1,20 @@
+
+
+Sign into psql as user postgres
+    sudo -u postgres psql  
+
+create user testuser;
+
+create database testdb;
+
+alter user testuser with encrypted password 'password2';
+/conn testdb
+grant all privileges on database testdb to testuser;
+
+CREATE TABLE cars (
+  brand VARCHAR(255),
+  model VARCHAR(255),
+  year INT
+);
+
+

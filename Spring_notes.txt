@@ -1,0 +1,285 @@
+SpringBoot - build production ready applications quickly. Bundles Tomcat with java code
+    Use spring initalize .io for template project
+
+    mvn clean package
+    java -jar target/firstproject-0.0.1-SNAPSHOT.jar
+
+@SpringBootApplication - the root/main class
+
+REST API with springboot:
+    @RestController
+    public class CourseController {
+
+        @RequestMapping("/courses") // localhost:8080/courses is now exposed
+        public List<Course> retrieveAllCourses(){
+
+dev@dev-ThinkPad-T14-Gen-1:~/Documents/workspace/firstproject$ http http://localhost:8080/courses
+HTTP/1.1 200 
+Connection: keep-alive
+Content-Type: application/json
+Date: Thu, 10 Jul 2025 16:39:07 GMT
+Keep-Alive: timeout=60
+Transfer-Encoding: chunked
+
+[
+    {
+        "author": "in28minutes",
+        "id": 1,
+        "name": "Learn AWS"
+    },
+    {
+        "author": "in28minutes",
+        "id": 2,
+        "name": "learn Devops"
+    }
+]
+
+
+Profiles - allows different configs for different environments
+Spring Boot Actuator (monitoring)
+
+Spring boot starter projects - templates with many dependencenies included in the pom.xml
+    (Starter Data JPA, Starts JDBC, Starter Securitu (secure rest API)
+
+Spring boot auto configuration
+    -based on which frameworks are in classpath
+    -Auto adds jars under maven dependencies (things like tomcat automatically get)
+
+SpringBoot dev tools:
+    Auto serve changes in server:
+        		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+		</dependency>
+
+
+Using profiles for different environment:
+    application.properties //default
+        spring.profiles.active=dev //will use the application-dev.properties
+    application-dev.properties
+        currency-service.url=...
+        currency-service.username=...
+        currency-service.key=...
+    application-prod.properties
+
+@ConfigurationProperties(prefix="currency-service") //maps all properties with this prefix to attributes
+@Component              //Marks class a bean, tells spring to manage it's life cycle and instaniate it
+public class CurrencyServiceConfiguration {
+private String url;
+private String username;
+private String key;
+
+@RestController
+public class ConcurrencyConfigurationController {
+    @Autowired           //tells spring to populate this field using dependency injection
+    private CurrencyServiceConfiguration configuration;
+
+    @RequestMapping("/currency-configuration")
+    public CurrencyServiceConfiguration retrieveAllCourses(){
+        return configuration;
+    }
+    
+}
+
+dev@dev-ThinkPad-T14-Gen-1:~/Documents/workspace/firstproject$ http http://localhost:8080/currency-configuration
+HTTP/1.1 200 
+Connection: keep-alive
+Content-Type: application/json
+Date: Thu, 10 Jul 2025 17:51:15 GMT
+Keep-Alive: timeout=60
+Transfer-Encoding: chunked
+
+{
+    "key": "some key",
+    "url": "some url",
+    "username": "some username"
+}
+
+
+Actuator - provides endpoint health metrics and details out of box
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+http http://localhost:8080/actuator
+http http://localhost:8080/actuator/metrics
+in application.properties:
+    management.endpoints.web.exposure.include=health,metrics
+
+
+@RestController
+public class HelloWorldController {
+    @RequestMapping(method=RequestMethod.GET, path="/hello-world")
+    public String helloWorld(){
+
+    @GetMapping(path="/hello-world")
+    public String helloWorld(){
+
+Spring Boot auto configures many things if none are defined:
+    Error Page
+    Dispatcher Servlet
+    Jackson (object mapping for JSON)
+    Scans for @ annotations and does the mapping
+
+Allow rest to be called from specific server:
+
+@CrossOrigin(origins="http://localhost:4200")
+@RestController
+public class HelloWorldController {
+    
+
+
+    @DeleteMapping("/users/{username}/todos/{id}")
+    public ResponseEntity<Void> deleteTodo(@PathVariable String username, @PathVariable long id){
+
+    @GetMapping("/users/{username}/todos")
+    public List<Todo> getAllTodos(@PathVariable String username){
+    
+    @DeleteMapping("/users/{username}/todos/{id}")
+    public ResponseEntity<Void> deleteTodo(@PathVariable String username, @PathVariable long id){
+        Todo todo = todoService.deleteById(id);
+        if(todo != null){
+            return ResponseEntity.noContent().build();
+        }
+
+    @PutMapping("/users/{username}/todos/{id}")
+    public ResponseEntity<Todo> updateTodo(@PathVariable String username,  
+    @PathVariable long id, @RequestBody Todo todo){
+     Todo todoUpdated = todoService.save(todo);
+     return new ResponseEntity<Todo>(todoUpdated,HttpStatus.OK);
+    }
+
+    @PostMapping("/users/{username}/todos")
+    public ResponseEntity<Void> createTodo(@PathVariable String username,  
+    @RequestBody Todo todo){
+        Todo createdTodo = todoService.save(todo);
+
+         URI uri = ServletUriComponentsBuilder
+            .fromCurrentRequest().path("/{id}").buildAndExpand(createdTodo.getId()).toUri();
+        return ResponseEntity.created(uri).build();
+    }
+
+Spring security:
+    set customer username/password. Including spring security in Maven will auto enable it. if no config in application.properties is provided then user/auto gen pw is made
+spring.security.user.name=in28minutes
+spring.security.user.password=dummy
+
+@Configuration //class contains one or more beans, flag it for processing by spring and generate definition 
+@EnableWebSecurity //tell spring the configuration will include a web sercurity bean
+public class SpringSecurityConfigurationBasicAuth{
+    
+    @Bean //method produces bean for spring container to instaniate and manage
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        //1: Response to preflight request doesn't pass access control check
+        //2: basic auth
+        return 
+                http
+                    .authorizeHttpRequests(
+                        auth -> 
+                            auth
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                            .anyRequest().authenticated()
+                        )
+                    .httpBasic(Customizer.withDefaults())
+                    .sessionManagement(
+                        session -> session.sessionCreationPolicy
+                        (SessionCreationPolicy.STATELESS))
+                    .csrf().disable()
+                    .build();
+    }
+}
+
+
+
+//controller
+@CrossOrigin(origins="*")
+@RestController
+public class BasicAuthenticationController { 
+
+    @GetMapping(path="/basicauth")
+    public AuthenticationBean helloWorldBean(){
+        return new AuthenticationBean("You are authenticated");
+    }
+}
+
+
+
+Using JWT instead of basic authenticaiton
+    JWT - Header - Hash algo, 
+        Payload, - who, what, when
+        Signature - secret key for hashing
+
+get jwt token:
+    http POST http://localhost:8080/authenticate
+use jwt token:
+ http GET http://localhost:8080/users/in28minutes/todos Authorization:"Bearer eyJraWQiOiI1ZTg3NzY1My1mZWZiLTRhOWYtOWNkNS0yYTJhYTRiNDdlZjEiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJzZWxmIiwic3ViIjoiaW4yOG1pbnV0ZXMiLCJleHAiOjE3NTI5MTAwNzMsImlhdCI6MTc1MjkwNDY3Mywic2NvcGUiOiJST0xFX1VTRVIifQ.TgquYfV1wiqIZRfeQy-MGjijqZVpDPqsl_Q1Ol8xJ_xXHPjNbfR1rZEuH-3d_3AWxaga9cqKWRui3TYUxh9wHNpnhSwxycYr_nNY60rDNh7DRaT1OiMp02vE38yri1P_Y3trzUBb2vJWFEEW-zD8utHynxlMPJn2jSzI1ACIQSUlgHR59x1srqGZAwhdgjSXRRfdns5jT1PF-urlX-Oz4pSDlIfLIGx0gflX8mcVqULiAVN4jf_gIG-i8XsD9VpCnruGbvgjZuDNzcCUUyHdvs3WApowYaBC0QW5VyY-0fW8uR1msAyOcyErMoCrX9UkgP-Ct7XmIkfOSOhnz56bVg"
+
+
+Most important Spring annotations
+Below are the most important Java Spring annotations with concise, one-sentence definitions:
+
+- @SpringBootApplication: Marks the main class of a Spring Boot application, enabling auto-configuration, component scanning, and configuration.
+- @Component: Indicates a class is a Spring-managed component, automatically detected during component scanning.
+- @Autowired: Enables automatic dependency injection for beans, fields, constructors, or methods.
+- @RestController: Marks a class as a RESTful controller, combining `@Controller` and `@ResponseBody` for handling HTTP requests.
+- @Controller: Designates a class as a Spring MVC controller for handling web requests.
+- @Service: Indicates a class contains business logic and is a Spring-managed service component.
+- @Repository: Marks a class as a data access component, typically for database operations, with exception translation.
+- @Configuration: Defines a class as a source of bean definitions and configuration for the Spring application context.
+- @Bean: Declares a method in a `@Configuration` class that produces a Spring-managed bean.
+- @RequestMapping: Maps HTTP requests to specific handler methods or classes, supporting various HTTP methods.
+- @GetMapping: Maps HTTP GET requests to a specific handler method.
+- @PostMapping: Maps HTTP POST requests to a specific handler method.
+- @RequestBody: Binds the HTTP request body to a method parameter, typically for JSON or XML payloads.
+- @ResponseBody: Indicates a method’s return value should be serialized directly into the HTTP response body.
+- @PathVariable: Binds a URL path variable to a method parameter.
+- @RequestParam: Binds a query parameter from the HTTP request to a method parameter.
+- @Transactional: Enables declarative transaction management for a method or class, ensuring database operations are atomic.
+- @EnableAutoConfiguration: Enables Spring Boot’s auto-configuration mechanism to automatically configure beans based on dependencies.
+- @ComponentScan: Specifies base packages for Spring to scan for components, configurations, and services.
+- @Value: Injects values from properties files, environment variables, or defaults into fields or parameters.
+
+These annotations are core to Spring and Spring Boot for building robust, scalable applications, especially for dependency injection, MVC, and data access.
+
+
+SPRING SECURITY
+
+Request > Spring Security > Dispatcher Servlet > Conrollers
+
+Spring security intercepts all requests
+    Authentication
+    Authorization
+    Cross Origin Resource Sharing (CORS) - CorsFilter
+    Cross Site Request Forgery (CSRF) - CsrfFilter
+    Login Page, Lgout Page
+
+Order of filters is important 
+   1) Basic filters (CORS, CSRF...)
+   2) Authenitcation filters
+   3) Authorization filters
+
+Spring security defaults:
+    Everything is authenticated
+    Form based authentication (default login/logout page, defaulted generated password in logs)
+    CSRF Token - Cross Site Request Forgery
+        -Token generated for each request
+        -To make an update you need a CSRF token from the previous request
+        -Only needed if session is involved, if REST API is stateless not needed
+    Disable CSRF by SameSite cookie (Set-Cookie: SameSite=Strict)
+        
+
+    CORS - Cross Origin Resource Sharing
+        Global configuration - Configure addCorsMappings callback method in WevMvcConfigurer
+        Local configuration - @CrossOrigin (on REST Controller)- Allow from all origins 
+
+@EnableMethodSecurity(jsr250Enabled=true)
+class
+
+@GetMapping("/users/{username}/todos")
+@PreAuthorize("hasRole('USER') a nd #username == authentication.name")
+@PostAuthorize("returnObject.username == 'in28minutes'")
+@RolesAllowed({"ADMIN","USER"})
+
+
+
