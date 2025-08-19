@@ -1087,4 +1087,170 @@ spec:
 
 
 
+Kubernetes related security
+    kube-apiserver - center of all operations (through kubectl or api directly)
+        How to control access to the kube api server:
+            Authentication - who are they
+            Authorization - what can they do
+
+    
+    Authentication
+        Adnins, developers, end users, systems
+
+    Users:
+        all user access is managed by kube-apiserver
+        auth mechancisms:
+           basic file user-details.csv (password123,user1,u0001)
+                kube-api-server.service
+                    --basic-auth-file=user-details.csv
+
+        
+
+    KubeConfig
+        - to avoid passing in password, ssl, server name, etc to every command we move to a KubeConfig file:
+        kubectl get pods --kubeconfig config #will look in $HOME/.kube/config by default
+
+        KubeConfig file:
+            Clusters, Contexts, Users
+                
+
+        apiVersion: v1
+        kind: Config
+        current-context: dev-user@google # default context to use
+
+        clusters:
+        - name: my-kube-playground
+          cluster:
+            certificate-authority: ca.crt
+            server: https...
+
+
+        contexts:
+        - name: my-kube-admin@my-kube-playground
+          context:
+            cluster: my-kube-playground
+            user: my-kube-admin
+            namespace: finance #when you switch to context will now be in this namespace automatically
+
+
+        users:
+        - name: my-kube-admin
+          user:
+            client-certificate: admin.crt
+            client-key: admin.key
+
+
+        kubectl config view
+        kubectl config use-context prod-user@production
+        kubectl config use-context research --kubeconfig=/root/my-kube-config #use context defined in other file
+
+
+API Groups
+    
+    /version
+    /api > v1 > namespaces, pods, rc, nodes, etc
+    /apis > /apps, /extensons, /networking.k8s.io (groups) > goes to resources: /v1 > /deployments, /replicasets, etc
+
+
+    Named /apis > API Groups > Resources > Verbs (actions)
+
+Authorization
+    use /api names to restrict actions for differnet users (developers, admins, etc)
+    kubelet access within the cluster:
+        read: services, endpoint, nodes, pods
+        write: node stuatus, pod status, events
+    Role based access controls (RBAC):
+        create role with permissions, associate users with role
+a proxy is used to get to /api and /apis:
+kubectl get pods
+E0819 09:39:30.729311  260474 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://kubernetes.docker.internal:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+
+
+    Authorization mode
+        --authorization-mode=Node,RBAC,Webhook 
+            #kube api manifest. handled in the order listed (ie node could deny, RBAC may grant permision
+
+
+Role Based Access Controls
+    #developer-role.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+        name: developer
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["list", "get", "create", "update", "delete"] #actions this role is granted
+    - apiGroups: [""]
+      resources: ["ConfigMap"]
+      verbs: ["create"]
+      resourceNames: ["somepodName"] #restricts this access to this resource
+
+    #devuser-developer-binding.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+        name: devuser-developer-binding
+    subjects:
+    - kind: User
+      name: dev-user
+      apiGroup: rbac.authorization.k8s.io
+    roleRef:
+        kind: Role
+        name: developer
+        apiGroup: rbac.authorization.k8s.io
+
+
+    kubectl create -f filename
+    kubectl get roles
+    kubectl get rolebindings
+    kubectl describe role developer
+    kubectl describe rolebindings devuser-developer-binding
+
+
+
+Check access: kubectl auth can-i create deployments #delete nodes, etc
+kubectl auth can-i create pods --as devuser
+
+kubectl auth can-i create pods --as dev-user --namespace test
+
+Check authorization on server:
+kubectl describe pod kube-apiserver-controlplane -n kube-system
+          --authorization-mode=Node,RBAC
+
+kubectl describe rolebinding kube-proxy -n kube-system #see accounts assigned to role
+
+
+ClusterRoles
+        Resources are namespaced or clusterscoped
+        clusterscoped resources are resources that don't fit into the namespace category:
+            -nodes, PV, clusterrolebindings, namespaces, etc
+
+    #cluster-admin-role.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+        name: cluster-administrator
+    rules:
+    - apiGroups: ["]
+      resources: ["nodes"]
+      verbs: ["list", "get", "create", "delete"]
+
+    #cluster-role-bindings.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+        name: cluster-admin-role-binding
+    subjects:
+    - kind: User
+      name: cluster-admin
+      apiGroup: rbac.authorization.k8s.io
+    roleRef:
+        kind: ClusterRole
+        name: cluster-administrator
+        apiGroup: rbac.authorization.k8s.io
+
+
+    usual kubectl create -f commands
+
 
